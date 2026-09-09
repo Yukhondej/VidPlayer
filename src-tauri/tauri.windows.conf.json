@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": ["mp4", "m4v", "mkv", "mov", "avi", "webm", "wmv", "mpg", "mpeg", "m2v", "ts", "mts", "m2ts", "flv", "vob", "ogv", "3gp"],
+        "name": "VidPlayer.Video",
+        "description": "Video file",
+        "role": "Viewer"
+      }
+    ]
+  }
+}
