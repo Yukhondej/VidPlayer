@@ -1,6 +1,6 @@
 # VidPlayer
 
-VidPlayer is a Windows video player with frame-by-frame navigation, trimming, and cropping. You can preview your selection and export a clip from the same window.
+A minimal Windows video player with frame-by-frame navigation, trimming, and cropping. You can preview your selection and export a clip from the same window.
 
 ## Install
 
