@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="VidPlayerDefaultAppsRegistration" Guid="4F94D256-0C75-4CD4-A642-59DA9A58AF86" Win64="yes">
+        <RegistryValue Root="HKLM" Key="SOFTWARE\RegisteredApplications" Name="VidPlayer" Type="string" Value="SOFTWARE\VidPlayer\Capabilities" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities" Name="ApplicationName" Type="string" Value="VidPlayer" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities" Name="ApplicationDescription" Type="string" Value="Play, trim, crop, and export video files." />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".mp4" Type="string" Value="VidPlayer.mp4" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".m4v" Type="string" Value="VidPlayer.m4v" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".mkv" Type="string" Value="VidPlayer.mkv" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".mov" Type="string" Value="VidPlayer.mov" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".avi" Type="string" Value="VidPlayer.avi" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".webm" Type="string" Value="VidPlayer.webm" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".wmv" Type="string" Value="VidPlayer.wmv" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".mpg" Type="string" Value="VidPlayer.mpg" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".mpeg" Type="string" Value="VidPlayer.mpeg" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".m2v" Type="string" Value="VidPlayer.m2v" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".ts" Type="string" Value="VidPlayer.ts" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".mts" Type="string" Value="VidPlayer.mts" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".m2ts" Type="string" Value="VidPlayer.m2ts" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".flv" Type="string" Value="VidPlayer.flv" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".vob" Type="string" Value="VidPlayer.vob" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".ogv" Type="string" Value="VidPlayer.ogv" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\VidPlayer\Capabilities\FileAssociations" Name=".3gp" Type="string" Value="VidPlayer.3gp" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>
