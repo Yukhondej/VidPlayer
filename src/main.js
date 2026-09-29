@@ -98,6 +98,12 @@ let draggingHandle = null;
 let videoLoaded = false;
 let skipBackSeconds = 5;
 let skipForwardSeconds = 5;
+let lastExportFolder = "";
+let settingsSaveTask = Promise.resolve();
+let settingsResizeTimer;
+let settingsLoaded = false;
+let settingsWindowWidth = window.innerWidth;
+let settingsWindowHeight = window.innerHeight;
 let editingSkipDirection = "back";
 let eofReached = false;
 let outPointTracksEnd = true;
@@ -905,12 +911,17 @@ async function exportClip(mode = "lossless") {
     const selectedPath = await invoke("plugin:dialog|save", {
       options: {
         title: `Export ${mode} clip`,
-        defaultPath: `${folder}${stem}_trim_${mode}.${extension}`,
+        defaultPath: `${lastExportFolder || folder}${stem}_trim_${mode}.${extension}`,
         filters: [{ name: "Video", extensions: [extension] }],
       },
     });
 
     if (!selectedPath) return;
+    const selectedSlash = Math.max(selectedPath.lastIndexOf("\\"), selectedPath.lastIndexOf("/"));
+    if (selectedSlash >= 0) {
+      lastExportFolder = selectedPath.slice(0, selectedSlash + 1);
+      persistPreferences();
+    }
     exportProgress.hidden = mode !== "precise";
     exportProgress.value = 0;
     setExportResult(mode === "precise" ? "Encoding precise clip..." : "Exporting without re-encoding...");
@@ -973,6 +984,35 @@ function updateDraggedHandle(event) {
     outPoint = Math.max(Math.min(target, lastFrameTime()), inPoint);
   }
   renderTrim();
+}
+
+async function loadPreferences() {
+  try {
+    const settings = await invoke("load_settings");
+    skipBackSeconds = settings.skipBackSeconds;
+    skipForwardSeconds = settings.skipForwardSeconds;
+    lastExportFolder = settings.lastExportFolder;
+    settingsWindowWidth = settings.windowWidth;
+    settingsWindowHeight = settings.windowHeight;
+    renderSkipInterval();
+  } catch (error) {
+    console.error("Could not load settings:", error);
+  } finally {
+    settingsLoaded = true;
+  }
+}
+
+function persistPreferences() {
+  if (!settingsLoaded) return;
+  const settings = {
+    skipBackSeconds,
+    skipForwardSeconds,
+    windowWidth: settingsWindowWidth,
+    windowHeight: settingsWindowHeight,
+    lastExportFolder,
+  };
+  settingsSaveTask = settingsSaveTask.catch(() => {}).then(() => invoke("save_settings", { settings }))
+    .catch((error) => console.error("Could not save settings:", error));
 }
 
 async function loadStartupVideo() {
@@ -1253,6 +1293,12 @@ window.addEventListener("resize", () => {
   wheelGesture = null;
   videoOutputBounds = {};
   scheduleCropRender();
+  if (window.innerWidth >= 700 && window.innerHeight >= 400) {
+    settingsWindowWidth = window.innerWidth;
+    settingsWindowHeight = window.innerHeight;
+    clearTimeout(settingsResizeTimer);
+    settingsResizeTimer = window.setTimeout(persistPreferences, 400);
+  }
 });
 playToggle.addEventListener("click", togglePlayback);
 skipStart.addEventListener("click", () => seekTo(0).catch(console.error));
@@ -1279,6 +1325,7 @@ skipForm.addEventListener("submit", (event) => {
     skipForwardSeconds = roundedValue;
   }
   renderSkipInterval();
+  persistPreferences();
 });
 skipAmount.addEventListener("input", () => skipAmount.setCustomValidity(""));
 skipAmount.addEventListener("keydown", (event) => {
@@ -1399,5 +1446,5 @@ window.addEventListener("keydown", (event) => {
 // Initial media loading and explicit reset fit the video. Resizing the window
 // or controls must not reapply the default 10px clearance.
 
-startPlayer();
 renderSkipInterval();
+loadPreferences().then(startPlayer);

@@ -2,8 +2,72 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use tauri::Emitter;
+use tauri::{Emitter, Manager, path::BaseDirectory};
 use tauri_plugin_libmpv::MpvExt;
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct Settings {
+    skip_back_seconds: u32,
+    skip_forward_seconds: u32,
+    window_width: u32,
+    window_height: u32,
+    last_export_folder: String,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            skip_back_seconds: 5,
+            skip_forward_seconds: 5,
+            window_width: 900,
+            window_height: 600,
+            last_export_folder: String::new(),
+        }
+    }
+}
+
+impl Settings {
+    fn validated(mut self) -> Self {
+        self.skip_back_seconds = self.skip_back_seconds.clamp(1, 3600);
+        self.skip_forward_seconds = self.skip_forward_seconds.clamp(1, 3600);
+        self.window_width = self.window_width.clamp(700, 7680);
+        self.window_height = self.window_height.clamp(400, 4320);
+        if !self.last_export_folder.is_empty() && !Path::new(&self.last_export_folder).is_dir() {
+            self.last_export_folder.clear();
+        }
+        self
+    }
+}
+
+fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path().app_config_dir()
+        .map(|directory| directory.join("settings.json"))
+        .map_err(|error| format!("Could not find the settings directory: {error}"))
+}
+
+fn read_settings(app: &tauri::AppHandle) -> Settings {
+    settings_path(app).ok()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<Settings>(&text).ok())
+        .unwrap_or_default()
+        .validated()
+}
+
+#[tauri::command]
+fn load_settings(app: tauri::AppHandle) -> Settings {
+    read_settings(&app)
+}
+
+#[tauri::command]
+fn save_settings(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
+    let path = settings_path(&app)?;
+    std::fs::create_dir_all(path.parent().ok_or("Invalid settings path.")?)
+        .map_err(|error| format!("Could not create the settings directory: {error}"))?;
+    let data = serde_json::to_vec_pretty(&settings.validated())
+        .map_err(|error| format!("Could not encode settings: {error}"))?;
+    std::fs::write(path, data).map_err(|error| format!("Could not save settings: {error}"))
+}
 
 #[tauri::command]
 async fn set_video_view(app: tauri::AppHandle, zoom: f64, pan_x: f64, pan_y: f64) -> Result<(), String> {
@@ -123,6 +187,20 @@ fn validate_video_path(path: String) -> Result<(), String> {
     }
 }
 
+fn ffmpeg_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    if let Some(override_path) = std::env::var_os("VID_PLAYER_FFMPEG_PATH") {
+        return Ok(PathBuf::from(override_path));
+    }
+
+    let bundled = app.path().resolve("lib/ffmpeg.exe", BaseDirectory::Resource)
+        .map_err(|error| format!("Could not locate bundled FFmpeg: {error}"))?;
+    if bundled.is_file() {
+        Ok(bundled)
+    } else {
+        Err(format!("Bundled FFmpeg is missing: {}", bundled.display()))
+    }
+}
+
 #[tauri::command]
 async fn export_clip(
     app: tauri::AppHandle,
@@ -162,8 +240,7 @@ async fn export_clip(
         let duration = trimmed_duration(in_time, out_time, frame_duration)?;
         let in_argument = format!("{in_time:.6}");
         let duration_argument = format!("{duration:.6}");
-        let ffmpeg = std::env::var("VID_PLAYER_FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".to_string());
-        let mut command = Command::new(ffmpeg);
+        let mut command = Command::new(ffmpeg_path(&app)?);
         command.args(["-y", "-ss", &in_argument, "-i", &input_path, "-t", &duration_argument]);
         if !encoding {
             command.args(["-c", "copy", "-avoid_negative_ts", "make_zero"]);
@@ -180,7 +257,7 @@ async fn export_clip(
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|error| format!("Could not start FFmpeg. Ensure it is on PATH or set VID_PLAYER_FFMPEG_PATH. {error}"))?;
+            .map_err(|error| format!("Could not start bundled FFmpeg. {error}"))?;
 
         let stderr = child.stderr.take().ok_or_else(|| "Could not capture FFmpeg errors.".to_string())?;
         let stderr_reader = std::thread::spawn(move || {
@@ -229,10 +306,17 @@ fn greet(name: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let settings = read_settings(app.handle());
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_size(tauri::LogicalSize::new(settings.window_width, settings.window_height));
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_libmpv::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, startup_video_path, set_video_view, validate_video_path, export_clip])
+        .invoke_handler(tauri::generate_handler![greet, startup_video_path, set_video_view, validate_video_path, export_clip, load_settings, save_settings])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -276,5 +360,26 @@ mod crop_tests {
         assert!(decoded.status.success() && expected.status.success());
         assert_eq!(decoded.stdout.len(), 101 * 73 * 3);
         assert_eq!(decoded.stdout, expected.stdout, "Encoded crop must retain the exact selected pixels");
+    }
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::Settings;
+
+    #[test]
+    fn missing_fields_use_defaults_and_invalid_values_are_bounded() {
+        let defaults: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(defaults.skip_back_seconds, 5);
+        assert_eq!(defaults.window_width, 900);
+
+        let settings: Settings = serde_json::from_str(
+            r#"{"skipBackSeconds":0,"skipForwardSeconds":5000,"windowWidth":1,"windowHeight":99999}"#,
+        ).unwrap();
+        let settings = settings.validated();
+        assert_eq!(settings.skip_back_seconds, 1);
+        assert_eq!(settings.skip_forward_seconds, 3600);
+        assert_eq!(settings.window_width, 700);
+        assert_eq!(settings.window_height, 4320);
     }
 }

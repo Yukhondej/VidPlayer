@@ -10,7 +10,7 @@ $libRoot = Join-Path $projectRoot "src-tauri\lib"
 $architecture = if ($Target -eq "x86_64-pc-windows-msvc") { "x86_64" } else { "aarch64" }
 $expectedMachine = if ($architecture -eq "x86_64") { 0x8664 } else { 0xAA64 }
 $sourceDirectory = Join-Path $libRoot $architecture
-$libraryNames = @("libmpv-2.dll", "libmpv-wrapper.dll")
+$libraryNames = @("libmpv-2.dll", "libmpv-wrapper.dll", "ffmpeg.exe")
 
 function Get-PeMachine([string]$Path) {
   $bytes = [System.IO.File]::ReadAllBytes($Path)
@@ -40,4 +40,4 @@ foreach ($libraryName in $libraryNames) {
   Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $libRoot $libraryName) -Force
 }
 
-Write-Output "Staged $architecture libmpv libraries for $Target."
+Write-Output "Staged $architecture playback and export binaries for $Target."

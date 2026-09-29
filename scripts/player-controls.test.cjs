@@ -154,6 +154,33 @@ test("normal startup leaves the path-entry screen ready without loading a file",
   assert.equal(context.pathInput.value, "");
 });
 
+test("preferences load before use and changed values are saved", async () => {
+  const saves = [];
+  const context = vm.createContext({
+    skipBackSeconds: 5, skipForwardSeconds: 5, lastExportFolder: "",
+    settingsWindowWidth: 900, settingsWindowHeight: 600,
+    settingsSaveTask: Promise.resolve(), settingsLoaded: false,
+    renderSkipInterval() {}, console,
+    invoke: async (name, args) => {
+      if (name === "load_settings") return {
+        skipBackSeconds: 12, skipForwardSeconds: 8,
+        windowWidth: 1100, windowHeight: 700,
+        lastExportFolder: "C:\\Exports\\",
+      };
+      saves.push(args.settings);
+    },
+  });
+  vm.runInContext(source.slice(source.indexOf("async function loadPreferences"), source.indexOf("async function loadStartupVideo")), context);
+  await vm.runInContext("loadPreferences()", context);
+  assert.equal(context.skipBackSeconds, 12);
+  assert.equal(context.lastExportFolder, "C:\\Exports\\");
+  vm.runInContext("skipForwardSeconds = 15; persistPreferences()", context);
+  await context.settingsSaveTask;
+  assert.equal(saves.length, 1);
+  assert.equal(saves[0].skipForwardSeconds, 15);
+  assert.equal(saves[0].windowWidth, 1100);
+});
+
 test("compact central timecodes switch at one minute", () => {
   const context = vm.createContext({ fps: 25, duration: 100 });
   vm.runInContext(source.slice(source.indexOf("function frameRate"), source.indexOf("function renderPlayback")), context);
@@ -274,7 +301,7 @@ test("Space works with a focused timeline and ignores held-key repeats and text 
     window: { addEventListener: (_, callback) => { handler = callback; } },
   });
   const start = source.lastIndexOf('window.addEventListener("keydown"');
-  vm.runInContext(source.slice(start, source.indexOf("startPlayer();", start)), context);
+  vm.runInContext(source.slice(start, source.indexOf("// Initial media loading", start)), context);
   let prevented = false;
   const event = { code: "Space", repeat: false, target: { matches: () => false }, preventDefault() { prevented = true; } };
   handler(event);
@@ -644,7 +671,7 @@ test("export works outside Edit and prevents duplicate save dialogs until comple
   let closeDialog;
   let dialogs = 0;
   const context = vm.createContext({
-    videoLoaded: true, duration: 10, editing: false, exportInProgress: false,
+    videoLoaded: true, duration: 10, editing: false, exportInProgress: false, lastExportFolder: "",
     hasCrop: () => false, inPoint: 0, outPoint: 9, frameTime: () => 1 / 30,
     exportButton: {}, pathInput: { value: "C:/Videos/example.mp4" }, exportProgress: {},
     renderTrim() {}, console, setExportResult() {},
